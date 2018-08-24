@@ -9,7 +9,7 @@ LDFLAGS=-Wl,-Map=$(PROGNAME).map -mmcu=$(CPU)
 # AVRDUDE=avrdude -p m8 -P usb -c avrispmkII
 AVRDUDE=avrdude -c USBasp -p atmega8
 
-OBJS=usbdrv/usbdrv.o usbdrv/usbdrvasm.o usbdrv/oddebug.o main.o snes.o devdesc.o
+OBJS=usbdrv/usbdrv.o usbdrv/usbdrvasm.o usbdrv/oddebug.o main.o monster.o devdesc.o
 
 HEXFILE=$(PROGNAME).hex
 ELFFILE=$(PROGNAME).elf

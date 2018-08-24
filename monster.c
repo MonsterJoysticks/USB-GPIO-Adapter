@@ -7,7 +7,7 @@
 #include <string.h>
 
 #include "gamepad.h"
-#include "snes.h"
+#include "monster.h"
 
 #define GAMEPAD_BYTES	8	/* 2 byte per snes controller * 4 controllers */
 

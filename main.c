@@ -8,7 +8,7 @@
 #include "usbdrv.h"
 #include "gamepad.h"
 
-#include "snes.h"
+#include "monster.h"
 
 #include "devdesc.h"
 
