@@ -1,5 +1,5 @@
-#ifndef _gamepad_h__
-#define _gamepad_h__
+#ifndef _joystick_h__
+#define _joystick_h__
 
 typedef struct {
 	// size of reports built by buildReport
@@ -20,8 +20,8 @@ typedef struct {
 	 * \return The number of bytes written to buf.
 	 * */
 	char (*buildReport)(unsigned char *buf, char id);
-} Gamepad;
+} Joystick;
 
-#endif // _gamepad_h__
+#endif // _joystick_h__
 
 

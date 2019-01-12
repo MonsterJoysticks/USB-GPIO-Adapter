@@ -6,69 +6,69 @@
 #include <avr/pgmspace.h>
 #include <string.h>
 
-#include "gamepad.h"
+#include "joystick.h"
 #include "monster.h"
 
 #define GAMEPAD_BYTES	8	/* 2 byte per snes controller * 4 controllers */
 
 /******** IO port definitions **************/
-#define SNES_LATCH_DDR	DDRC
-#define SNES_LATCH_PORT	PORTC
-#define SNES_LATCH_BIT	(1<<4)
+#define LATCH_DDR	DDRC
+#define LATCH_PORT	PORTC
+#define LATCH_BIT	(1<<4)
 
-#define SNES_CLOCK_DDR	DDRC
-#define SNES_CLOCK_PORT	PORTC
-#define SNES_CLOCK_BIT	(1<<5)
+#define CLOCK_DDR	DDRC
+#define CLOCK_PORT	PORTC
+#define CLOCK_BIT	(1<<5)
 
-#define SNES_DATA_PORT	PORTC
-#define SNES_DATA_DDR	DDRC
-#define SNES_DATA_PIN	PINC
-#define SNES_DATA_BIT1	(1<<3)	/* controller 1 */
+#define DATA_PORT	PORTC
+#define DATA_DDR	DDRC
+#define DATA_PIN	PINC
+#define DATA_BIT1	(1<<3)	/* controller 1 */
 
 /********* IO port manipulation macros **********/
-#define SNES_LATCH_LOW()	do { SNES_LATCH_PORT &= ~(SNES_LATCH_BIT); } while(0)
-#define SNES_LATCH_HIGH()	do { SNES_LATCH_PORT |= SNES_LATCH_BIT; } while(0)
-#define SNES_CLOCK_LOW()	do { SNES_CLOCK_PORT &= ~(SNES_CLOCK_BIT); } while(0)
-#define SNES_CLOCK_HIGH()	do { SNES_CLOCK_PORT |= SNES_CLOCK_BIT; } while(0)
+#define LATCH_LOW()	do { LATCH_PORT &= ~(LATCH_BIT); } while(0)
+#define LATCH_HIGH()	do { LATCH_PORT |= LATCH_BIT; } while(0)
+#define CLOCK_LOW()	do { CLOCK_PORT &= ~(CLOCK_BIT); } while(0)
+#define CLOCK_HIGH()	do { CLOCK_PORT |= CLOCK_BIT; } while(0)
 
-#define SNES_GET_DATA1()	(SNES_DATA_PIN & SNES_DATA_BIT1)
+#define GET_DATA1()	(DATA_PIN & DATA_BIT1)
 
 /*********** prototypes *************/
-static void snesInit(void);
-static void snesUpdate(void);
-static char snesChanged(unsigned char report_id);
-static char snesBuildReport(unsigned char *reportBuffer, char report_id);
+static void joystickInit(void);
+static void joystickUpdate(void);
+static char joystickChanged(unsigned char report_id);
+static char joystickBuildReport(unsigned char *reportBuffer, char report_id);
 
 
 // the most recent bytes we fetched from the controller
 static unsigned char last_read_controller_bytes[GAMEPAD_BYTES];
 
 // the most recently reported bytes
-static unsigned char last_reported_controller_bytes[GAMEPAD_BYTES];
+static unsigned char *last_reported_controller_bytes[GAMEPAD_BYTES];
 
-static void snesInit(void)
+static void joystickInit(void)
 {
 	unsigned char sreg;
 	sreg = SREG;
 	cli();
 	
 	// clock and latch as output
-	SNES_LATCH_DDR |= SNES_LATCH_BIT;
-	SNES_CLOCK_DDR |= SNES_CLOCK_BIT;
+	LATCH_DDR |= LATCH_BIT;
+	CLOCK_DDR |= CLOCK_BIT;
 	
 	// data as input
-	SNES_DATA_DDR &= ~(SNES_DATA_BIT1 );
+	DATA_DDR &= ~(DATA_BIT1 );
 	// enable pullup. This should prevent random toggling of pins
 	// when no controller is connected.
-	SNES_DATA_PORT |= (SNES_DATA_BIT1 );
+	DATA_PORT |= (DATA_BIT1 );
 
 	// clock is normally high
-	SNES_CLOCK_PORT |= SNES_CLOCK_BIT;
+	CLOCK_PORT |= CLOCK_BIT;
 
 	// LATCH is Active HIGH
-	SNES_LATCH_PORT &= ~(SNES_LATCH_BIT);
+	LATCH_PORT &= ~(LATCH_BIT);
 
-	snesUpdate();
+	joystickUpdate();
 
 	SREG = sreg;
 }
@@ -96,24 +96,24 @@ static void snesInit(void)
  *
  */
 
-static void snesUpdate(void)
+static void joystickUpdate(void)
 {
 	int i;
 	unsigned char tmp1=0;
-		SNES_LATCH_HIGH();
+		LATCH_HIGH();
 		_delay_us(12);
-		SNES_LATCH_LOW();
+		LATCH_LOW();
 
 		for (i=0; i<8; i++)
 		{
 			_delay_us(6);
-			SNES_CLOCK_LOW();
+			CLOCK_LOW();
 			
 			tmp1 <<= 1;
-			if (!SNES_GET_DATA1()) { tmp1 |= 1; }
+			if (!GET_DATA1()) { tmp1 |= 1; }
 
 			_delay_us(6);
-			SNES_CLOCK_HIGH();
+			CLOCK_HIGH();
 		}
 		last_read_controller_bytes[0] = tmp1;
 
@@ -121,22 +121,22 @@ static void snesUpdate(void)
 		{
 			_delay_us(6);
 
-			SNES_CLOCK_LOW();
+			CLOCK_LOW();
 
 			// notice that this is different from above. We
 			// want the bits to be in reverse-order
 			tmp1 >>= 1;
-			if ( !SNES_GET_DATA1() ) { tmp1 |= 0x80; }
+			if ( !GET_DATA1() ) { tmp1 |= 0x80; }
 			
 			_delay_us(6);
-			SNES_CLOCK_HIGH();
+			CLOCK_HIGH();
 		}
     
         last_read_controller_bytes[1] = tmp1;
 
 }
 
-static char snesChanged(unsigned char report_id)
+static char joystickChanged(unsigned char report_id)
 {
 	report_id--; // first report is 1
 
@@ -164,7 +164,7 @@ static char getY(unsigned char nesByte1)
 /* Move the bits around so that identical NES and SNES buttons
  * use the same USB button IDs. */
 
-static unsigned char snesReorderButtons(unsigned char bytes[2])
+static unsigned char joystickReorderButtons(unsigned char bytes[2])
 {
 	unsigned char v;
 
@@ -183,7 +183,7 @@ static unsigned char snesReorderButtons(unsigned char bytes[2])
 	return v;
 }
 
-static unsigned char snesExtraButtons(unsigned char bytes[2])
+static unsigned char joystickExtraButtons(unsigned char bytes[2])
 {
     unsigned char v;
     v = (bytes[1]&0x10)>>4;
@@ -191,7 +191,7 @@ static unsigned char snesExtraButtons(unsigned char bytes[2])
     return v;
 }
 
-static char snesBuildReport(unsigned char *reportBuffer, char id)
+static char joystickBuildReport(unsigned char *reportBuffer, char id)
 {
 	int idx;
 
@@ -209,68 +209,93 @@ static char snesBuildReport(unsigned char *reportBuffer, char id)
 	idx = id - 1;
 	if (reportBuffer != NULL)
 	{
-		reportBuffer[0]=id;
-		reportBuffer[1]=getX(last_read_controller_bytes[idx*2]);
-		reportBuffer[2]=getY(last_read_controller_bytes[idx*2]);
-        reportBuffer[3]=snesReorderButtons(&last_read_controller_bytes[idx*2]);
-        reportBuffer[4]=snesExtraButtons(&last_read_controller_bytes[idx*2]);
+		// reportBuffer[0]=id;
+		reportBuffer[0]=getX(last_read_controller_bytes[idx*2]);
+		reportBuffer[1]=getY(last_read_controller_bytes[idx*2]);
+        reportBuffer[5]=joystickReorderButtons(&last_read_controller_bytes[idx*2]);
+        reportBuffer[6]=joystickExtraButtons(&last_read_controller_bytes[idx*2]);
 	}
 
 	memcpy(&last_reported_controller_bytes[idx*2],&last_read_controller_bytes[idx*2],sizeof(&last_read_controller_bytes[idx*2]));
 
-	return 5;
+	return 7;
 }
 
-const char fournsnes_usbHidReportDescriptor[] PROGMEM = {
+const char usbHidReportDescriptor[] PROGMEM = {
 
 	/* Controller and report_id 1 */
-    0x05, 0x01,			// USAGE_PAGE (Generic Desktop)
-    // 0x09, 0x04,			// USAGE (Joystick)
-    0x09, 0x05,            // USAGE (Gamepad)
-    0xa1, 0x01,			//	COLLECTION (Application)
-    0x09, 0x01,			//		USAGE (Pointer)
-    0xa1, 0x00,			//		COLLECTION (Physical)
-	0x85, 0x01,			//			REPORT_ID (1)
-	0x09, 0x30,			//			USAGE (X)
-    0x09, 0x31,			//			USAGE (Y)
-    0x15, 0x00,			//			LOGICAL_MINIMUM (0)
-    0x26, 0xff, 0x00,	//			LOGICAL_MAXIMUM (255)
-    0x75, 0x08,			//			REPORT_SIZE (8)
-    0x95, 0x02,			//			REPORT_COUNT (2)
-    0x81, 0x02,			//			INPUT (Data,Var,Abs)
 
-    0x05, 0x09,            //            USAGE_PAGE (Button)
-    0x19, 1,            //           USAGE_MINIMUM (Button 1)
-    0x29, 9,            //           USAGE_MAXIMUM (Button 8)
-    0x15, 0x00,            //           LOGICAL_MINIMUM (0)
-    0x25, 0x01,            //           LOGICAL_MAXIMUM (1)
-    0x75, 1,            //             REPORT_SIZE (1)
-    0x95, 8,            //            REPORT_COUNT (8)
-    0x81, 0x02,            //            INPUT (Data,Var,Abs
-    
-    0x75, 1,            //             REPORT_SIZE (1)
-    0x95, 1,            //            REPORT_COUNT (1)
-    0x81, 0x02,            //            INPUT (Data,Var,Abs
-    
-    
-	0xc0,				//		END_COLLECTION
-    0xc0,				// END_COLLECTION
+	0x05, 0x01,	//	USAGE_PAGE (Generic Desktop)
+    	0x09, 0x04,	//	USAGE (Joystick)
+    		0xa1, 0x01,	//	COLLECTION (Application)
+    			0xa1, 0x02,	//	COLLECTION (Logical)
+	    			0x75, 0x08,	//	REPORT_SIZE (8)
+	    			0x95, 0x05,	//	REPORT_COUNT (5)
+	    			0x15, 0x00,	//	LOGICAL_MINIMUM (0)
+	    			0x26, 0xff, 0x00,	//	LOGICAL_MAXIMUM (255)
 
+	    			0x35, 0x00,	//	PHYSICAL_MINIMUM (0)
+	    			0x46, 0xff, 0x00,	//	PHYSICAL_MAXIMUM (255)
+					0x09, 0x30,	//	USAGE (X)
+	   				
+	   				0x09, 0x31,	//	USAGE (Y)
+					0x09, 0x31,	//	USAGE (Y)
+	    			0x09, 0x31,	//	USAGE (Y)
+	    			0x09, 0x31,	//	USAGE (Y)
+
+	    			0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
+					/*
+					0x75, 0x04,	//	REPORT_SIZE (4)
+	    			0x95, 0x01,	//	REPORT_COUNT (1)
+	    			0x81, 0x01,	//	INPUT (Constant, Array, Absolute)
+					*/
+	    			0x75, 0x01,	//	REPORT_SIZE (1)
+	   				0x95, 0x0C,	//	REPORT_COUNT (12)
+	   				0x25, 0x01,	//	LOGICAL_MAXIMUM (1)
+	   				0x45, 0x01,	//	PHYSICAL_MAXIMUM (1)
+	    			
+	    			0x05, 0x09,	//	USAGE_PAGE (Button)
+	    			0x19, 0x01,	//	USAGE_MINIMUM (Button 1)
+	    			0x29, 0x09,	//	USAGE_MAXIMUM (Button 9)
+	    			0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
+	    /*
+	    			0x06, 0x00, 0x0ff,	//	Usage Page (65280)
+	    			0x75, 0x01,	//	REPORT_SIZE (1)
+	   				0x95, 0x08,	//	REPORT_COUNT (8)
+	   				0x25, 0x01,	//	LOGICAL_MAXIMUM (1)
+	   				
+	   				0x45, 0x01,	//	PHYSICAL_MAXIMUM (1)
+	   				0x09, 0x01,	//	Usage 1 (0x1)
+	   				0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
+*/
+				0xc0,	//	END_COLLECTION
+
+   				0xa1, 0x02,	//	COLLECTION (Logical)
+   					0x75, 0x08,	//	REPORT_SIZE (8)
+   					0x95, 0x07,	//	REPORT_COUNT (7)
+   					0x46, 0xff, 0x00,	//	PHYSICAL_MAXIMUM (255)
+
+   					0x26, 0xff, 0x00,	//	LOGICAL_MAXIMUM (255)
+   					0x09, 0x02,	//	Usage 2 (0x2)
+   					0x91, 0x02,	//	OUTPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
+				0xc0,	//	END_COLLECTION
+
+    		0xc0,	//	END_COLLECTION
 };
 
-Gamepad SnesGamepad = {
+Joystick joystick = {
 	.num_reports 			= 1,
-	.reportDescriptorSize	= sizeof(fournsnes_usbHidReportDescriptor),
-	.init					= snesInit,
-	.update					= snesUpdate,
-	.changed				= snesChanged,
-	.buildReport			= snesBuildReport
+	.reportDescriptorSize	= sizeof(usbHidReportDescriptor),
+	.init					= joystickInit,
+	.update					= joystickUpdate,
+	.changed				= joystickChanged,
+	.buildReport			= joystickBuildReport
 };
 
-Gamepad *snesGetGamepad(void)
+Joystick *getJoystick(void)
 {
-	SnesGamepad.reportDescriptor = (void*)fournsnes_usbHidReportDescriptor;
+	joystick.reportDescriptor = (void*)usbHidReportDescriptor;
 
-	return &SnesGamepad;
+	return &joystick;
 }
 

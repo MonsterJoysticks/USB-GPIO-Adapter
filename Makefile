@@ -11,8 +11,8 @@ AVRDUDE=avrdude -c USBasp -p atmega8
 
 OBJS=usbdrv/usbdrv.o usbdrv/usbdrvasm.o usbdrv/oddebug.o main.o monster.o devdesc.o
 
-HEXFILE=$(PROGNAME).hex
-ELFFILE=$(PROGNAME).elf
+HEXFILE=bin/$(PROGNAME).hex
+ELFFILE=bin/$(PROGNAME).elf
 
 # symbolic targets:
 all: $(HEXFILE)

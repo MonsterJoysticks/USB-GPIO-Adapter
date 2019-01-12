@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "usbdrv.h"
-#include "gamepad.h"
+#include "joystick.h"
 
 #include "monster.h"
 
@@ -85,7 +85,7 @@ uchar my_usbDescriptorConfiguration[] = {    /* USB configuration descriptor */
 };
 
 
-static Gamepad *curGamepad;
+static Joystick *curJoystick;
 
 
 /* ----------------------- hardware I/O abstraction ------------------------ */
@@ -211,7 +211,7 @@ uchar	usbFunctionSetup(uchar data[8])
 			case USBRQ_HID_GET_REPORT:
 				/* wValue: ReportType (highbyte), ReportID (lowbyte) */
 				reportPos=0;
-				return curGamepad->buildReport(reportBuffer, rq->wValue.bytes[0]);
+				return curJoystick->buildReport(reportBuffer, rq->wValue.bytes[0]);
 			
 		}
 	} else {
@@ -231,17 +231,17 @@ int main(void)
 
 	_delay_ms(10); /* let pins settle */
 
-	curGamepad = snesGetGamepad();
+	curJoystick = getJoystick();
 
 	// configure report descriptor according to
 	// the current gamepad
-	rt_usbHidReportDescriptor = curGamepad->reportDescriptor;
-	rt_usbHidReportDescriptorSize = curGamepad->reportDescriptorSize;
+	rt_usbHidReportDescriptor = curJoystick->reportDescriptor;
+	rt_usbHidReportDescriptorSize = curJoystick->reportDescriptorSize;
 
-	if (curGamepad->deviceDescriptor != 0)
+	if (curJoystick->deviceDescriptor != 0)
 	{
-		rt_usbDeviceDescriptor = (void*)curGamepad->deviceDescriptor;
-		rt_usbDeviceDescriptorSize = curGamepad->deviceDescriptorSize;
+		rt_usbDeviceDescriptor = (void*)curJoystick->deviceDescriptor;
+		rt_usbDeviceDescriptorSize = curJoystick->deviceDescriptorSize;
 	}
 	else
 	{
@@ -255,10 +255,10 @@ int main(void)
 	my_usbDescriptorConfiguration[25] = rt_usbHidReportDescriptorSize;
 
 	usbReset();
-	curGamepad->init();
+	curJoystick->init();
 	usbInit();
 
-	curGamepad->update();
+	curJoystick->update();
 
 	sei();
 	
@@ -273,11 +273,11 @@ int main(void)
 		{
 			clrPollControllers();
 		
-			curGamepad->update();
+			curJoystick->update();
 
 			/* Check what will have to be reported */
-			for (i=0; i<curGamepad->num_reports; i++) {
-				if (curGamepad->changed(i+1)) {
+			for (i=0; i<curJoystick->num_reports; i++) {
+				if (curJoystick->changed(i+1)) {
 					must_report |= (1<<i);
 				}
 			}
@@ -286,7 +286,7 @@ int main(void)
 			
 		if(must_report)
 		{
-			for (i = 0; i < curGamepad->num_reports; i++)
+			for (i = 0; i < curJoystick->num_reports; i++)
 			{
 				if ((must_report & (1<<i)) == 0) 
 					continue;
@@ -295,7 +295,7 @@ int main(void)
 				{ 	
 					char len;
 
-					len = curGamepad->buildReport(reportBuffer, i+1);
+					len = curJoystick->buildReport(reportBuffer, i+1);
 					usbSetInterrupt(reportBuffer, len);
 
 					while (!usbInterruptIsReady())

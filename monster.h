@@ -1,2 +1,2 @@
-#include "gamepad.h"
-Gamepad *snesGetGamepad(void);
+#include "joystick.h"
+Joystick *getJoystick(void);

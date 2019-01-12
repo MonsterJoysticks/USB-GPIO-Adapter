@@ -89,7 +89,7 @@ rename it to "usbconfig.h". Then edit it accordingly.
 /* Define this to 1 if the device has its own power supply. Set it to 0 if the
  * device is powered from the USB bus.
  */
-#define USB_CFG_MAX_BUS_POWER           100
+#define USB_CFG_MAX_BUS_POWER           500
 /* Set this variable to the maximum USB bus power consumption of your device.
  * The value is in milliamperes. [It will be divided by two since USB
  * communicates power requirements in units of 2 mA.]
@@ -136,8 +136,7 @@ rename it to "usbconfig.h". Then edit it accordingly.
 #define USB_CFG_DEVICE_VERSION  0x00, 0x01
 /* Version number of the device: Minor number first, then major number.
  */
-#define USB_CFG_VENDOR_NAME     'M', 'o', 'n', 's', 't', 'e', 'r', ' ', 'J', 'o', 'y', 's', 't', 'i', 'c', 'k', 's'
-#define USB_CFG_VENDOR_NAME_LEN 17
+
 /* These two values define the vendor name returned by the USB device. The name
  * must be given as a list of characters under single quotes. The characters
  * are interpreted as Unicode (UTF-16) entities.
@@ -146,15 +145,12 @@ rename it to "usbconfig.h". Then edit it accordingly.
  * obdev's free shared VID/PID pair. See the file USBID-License.txt for
  * details.
  */
-/*
-#define USB_CFG_DEVICE_NAME     '(', 'S', ')', 'N', 'E', 'S', '/', \
-								'A', 't', 'a', 'r', 'i', '_', 'U', 'S', 'B'
-#define USB_CFG_DEVICE_NAME_LEN 16*/
+#define USB_CFG_VENDOR_NAME     'M', 'o', 'n', 's', 't', 'e', 'r', ' ', 'J', 'o', 'y', 's', 't', 'i', 'c', 'k', 's'
+#define USB_CFG_VENDOR_NAME_LEN 17
 /* Same as above for the device name. If you don't want a device name, undefine
  * the macros. See the file USBID-License.txt before you assign a name if you
  * use a shared VID/PID.
  */
-//#define USB_CFG_SERIAL_NUMBER   'N', 'o', 'n', 'e' 
 #define USB_CFG_SERIAL_NUMBER   'M', 'o', 'n', 's', 't', 'e', 'r','J', 'o', 'y', 's', 't', 'i', 'c', 'k', 's', '.','c','o','m', ':', 'M', 'J', '0', '1'
 #define USB_CFG_SERIAL_NUMBER_LEN   25
 /* Same as above for the serial number. If you don't want a serial number,
