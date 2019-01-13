@@ -1,4 +1,12 @@
-#define F_CPU   12000000L
+/* Name: monster.c
+ * Project: Monster Joysticks USB / GPIO Joystick Adapter V1
+ * Author: Monster Joysticks Ltd. <info@monsterjoysticks.com>
+ * Copyright: (C) 2017 - 2019 Monster Joysticks Ltd. <info@monsterjoysticks.com>
+ * License: GPLv2
+ * Tabsize: 4
+ * Comments: Based on Multiple NES/SNES to USB converter by Christian Starkjohann
+ */
+ #define F_CPU   12000000L
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -9,7 +17,7 @@
 #include "joystick.h"
 #include "monster.h"
 
-#define GAMEPAD_BYTES	8	/* 2 byte per snes controller * 4 controllers */
+#define GAMEPAD_BYTES	2	/* 2 byte per snes controller * 4 controllers */
 
 /******** IO port definitions **************/
 #define LATCH_DDR	DDRC
@@ -23,7 +31,7 @@
 #define DATA_PORT	PORTC
 #define DATA_DDR	DDRC
 #define DATA_PIN	PINC
-#define DATA_BIT1	(1<<3)	/* controller 1 */
+#define DATA_BIT	(1<<3)	/* controller 1 */
 
 /********* IO port manipulation macros **********/
 #define LATCH_LOW()	do { LATCH_PORT &= ~(LATCH_BIT); } while(0)
@@ -31,7 +39,7 @@
 #define CLOCK_LOW()	do { CLOCK_PORT &= ~(CLOCK_BIT); } while(0)
 #define CLOCK_HIGH()	do { CLOCK_PORT |= CLOCK_BIT; } while(0)
 
-#define GET_DATA1()	(DATA_PIN & DATA_BIT1)
+#define GET_DATA()	(DATA_PIN & DATA_BIT)
 
 /*********** prototypes *************/
 static void joystickInit(void);
@@ -57,10 +65,10 @@ static void joystickInit(void)
 	CLOCK_DDR |= CLOCK_BIT;
 	
 	// data as input
-	DATA_DDR &= ~(DATA_BIT1 );
+	DATA_DDR &= ~(DATA_BIT);
 	// enable pullup. This should prevent random toggling of pins
 	// when no controller is connected.
-	DATA_PORT |= (DATA_BIT1 );
+	DATA_PORT |= (DATA_BIT);
 
 	// clock is normally high
 	CLOCK_PORT |= CLOCK_BIT;
@@ -72,29 +80,6 @@ static void joystickInit(void)
 
 	SREG = sreg;
 }
-
-/*
- *
-       Clock Cycle     Button Reported
-        ===========     ===============
-        1               B
-        2               Y
-        3               Select
-        4               Start
-        5               Up on joypad
-        6               Down on joypad
-        7               Left on joypad
-        8               Right on joypad
-        9               A
-        10              X
-        11              L
-        12              R
-        13              Home Button // MJ additional button
-        14              none (always high)
-        15              none (always high)
-        16              none (always high)
- *
- */
 
 static void joystickUpdate(void)
 {
@@ -110,7 +95,7 @@ static void joystickUpdate(void)
 			CLOCK_LOW();
 			
 			tmp1 <<= 1;
-			if (!GET_DATA1()) { tmp1 |= 1; }
+			if (!GET_DATA()) { tmp1 |= 1; }
 
 			_delay_us(6);
 			CLOCK_HIGH();
@@ -126,7 +111,7 @@ static void joystickUpdate(void)
 			// notice that this is different from above. We
 			// want the bits to be in reverse-order
 			tmp1 >>= 1;
-			if ( !GET_DATA1() ) { tmp1 |= 0x80; }
+			if ( !GET_DATA() ) { tmp1 |= 0x80; }
 			
 			_delay_us(6);
 			CLOCK_HIGH();
@@ -142,7 +127,7 @@ static char joystickChanged(unsigned char report_id)
 
 	return memcmp(	&last_read_controller_bytes[report_id<<1], 
 					&last_reported_controller_bytes[report_id<<1], 
-					sizeof(&last_reported_controller_bytes[report_id<<1]));
+					2);
 }
 
 static char getX(unsigned char nesByte1)
@@ -175,11 +160,8 @@ static unsigned char joystickReorderButtons(unsigned char bytes[2])
     v |= (bytes[0]&0x40)>>5;
     v |= (bytes[0]&0x20)>>3;
     v |= (bytes[0]&0x10)>>1;
-    
-    v |= (bytes[1]&0x1)<<4;
-    v |= (bytes[1]&0x2)<<4;
-    v |= (bytes[1]&0x4)<<4;
-    v |= (bytes[1]&0x8)<<4;
+    v |= (bytes[1]&0x0f)<<4;
+
 	return v;
 }
 
@@ -187,7 +169,6 @@ static unsigned char joystickExtraButtons(unsigned char bytes[2])
 {
     unsigned char v;
     v = (bytes[1]&0x10)>>4;
-    
     return v;
 }
 
@@ -198,89 +179,56 @@ static char joystickBuildReport(unsigned char *reportBuffer, char id)
 	if (id < 0 || id > 4)
 		return 0;
 
-	/* last_read_controller_bytes[] structure:
-	 *
-	 * [0] : controller 1, 8 first bits (dpad + start + sel + y|a + b)
-	 * [1] : controller 1, 8 snes extra bits (4 lower bits are buttons)
-	 *
-	 *
-	 */
-
 	idx = id - 1;
 	if (reportBuffer != NULL)
 	{
 		// reportBuffer[0]=id;
 		reportBuffer[0]=getX(last_read_controller_bytes[idx*2]);
 		reportBuffer[1]=getY(last_read_controller_bytes[idx*2]);
-        reportBuffer[5]=joystickReorderButtons(&last_read_controller_bytes[idx*2]);
-        reportBuffer[6]=joystickExtraButtons(&last_read_controller_bytes[idx*2]);
+		reportBuffer[2]=joystickReorderButtons(&last_read_controller_bytes[idx*2]);
+		reportBuffer[3]=joystickExtraButtons(&last_read_controller_bytes[idx*2]);
 	}
 
-	memcpy(&last_reported_controller_bytes[idx*2],&last_read_controller_bytes[idx*2],sizeof(&last_read_controller_bytes[idx*2]));
+	memcpy(&last_reported_controller_bytes[idx*2], 
+			&last_read_controller_bytes[idx*2], 
+			2);
 
-	return 7;
+	return 4;
 }
 
 const char usbHidReportDescriptor[] PROGMEM = {
 
 	/* Controller and report_id 1 */
+    0x05, 0x01,			// USAGE_PAGE (Generic Desktop)
+    0x09, 0x04,			// USAGE (Joystick)
+    0xa1, 0x01,			//	COLLECTION (Application)
+    0x09, 0x01,			//		USAGE (Pointer)
+    0xa1, 0x00,			//		COLLECTION (Physical)
+	// 0x85, 0x01,			//			REPORT_ID (1)
+	0x09, 0x30,			//			USAGE (X)
+    0x09, 0x31,			//			USAGE (Y)
+    0x15, 0x00,			//			LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x00,	//			LOGICAL_MAXIMUM (255)
+    0x75, 0x08,			//			REPORT_SIZE (8)
+    0x95, 0x02,			//			REPORT_COUNT (2)
+    0x81, 0x02,			//			INPUT (Data,Var,Abs)
 
-	0x05, 0x01,	//	USAGE_PAGE (Generic Desktop)
-    	0x09, 0x04,	//	USAGE (Joystick)
-    		0xa1, 0x01,	//	COLLECTION (Application)
-    			0xa1, 0x02,	//	COLLECTION (Logical)
-	    			0x75, 0x08,	//	REPORT_SIZE (8)
-	    			0x95, 0x05,	//	REPORT_COUNT (5)
-	    			0x15, 0x00,	//	LOGICAL_MINIMUM (0)
-	    			0x26, 0xff, 0x00,	//	LOGICAL_MAXIMUM (255)
+    0x05, 0x09,			//			USAGE_PAGE (Button)
+    0x19, 0x01,			//   		USAGE_MINIMUM (Button 1)
+    0x29, 0x09,			//   		USAGE_MAXIMUM (Button 8)
+    0x15, 0x00,			//   		LOGICAL_MINIMUM (0)
+    0x25, 0x01,			//   		LOGICAL_MAXIMUM (1)
+    0x75, 0x01,			// 			REPORT_SIZE (1)
+    0x95, 0x09,			//			REPORT_COUNT (8)
+    0x81, 0x02,			//			INPUT (Data,Var,Abs)
+    
+    0x75, 0x01,			// 			REPORT_SIZE (1)
+    0x95, 0x07,			//			REPORT_COUNT (8)
+    0x81, 0x01,			//			INPUT (Data,Var,Abs)
+	
+	0xc0,				//		END_COLLECTION
+    0xc0,				// END_COLLECTION
 
-	    			0x35, 0x00,	//	PHYSICAL_MINIMUM (0)
-	    			0x46, 0xff, 0x00,	//	PHYSICAL_MAXIMUM (255)
-					0x09, 0x30,	//	USAGE (X)
-	   				
-	   				0x09, 0x31,	//	USAGE (Y)
-					0x09, 0x31,	//	USAGE (Y)
-	    			0x09, 0x31,	//	USAGE (Y)
-	    			0x09, 0x31,	//	USAGE (Y)
-
-	    			0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
-					/*
-					0x75, 0x04,	//	REPORT_SIZE (4)
-	    			0x95, 0x01,	//	REPORT_COUNT (1)
-	    			0x81, 0x01,	//	INPUT (Constant, Array, Absolute)
-					*/
-	    			0x75, 0x01,	//	REPORT_SIZE (1)
-	   				0x95, 0x0C,	//	REPORT_COUNT (12)
-	   				0x25, 0x01,	//	LOGICAL_MAXIMUM (1)
-	   				0x45, 0x01,	//	PHYSICAL_MAXIMUM (1)
-	    			
-	    			0x05, 0x09,	//	USAGE_PAGE (Button)
-	    			0x19, 0x01,	//	USAGE_MINIMUM (Button 1)
-	    			0x29, 0x09,	//	USAGE_MAXIMUM (Button 9)
-	    			0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
-	    /*
-	    			0x06, 0x00, 0x0ff,	//	Usage Page (65280)
-	    			0x75, 0x01,	//	REPORT_SIZE (1)
-	   				0x95, 0x08,	//	REPORT_COUNT (8)
-	   				0x25, 0x01,	//	LOGICAL_MAXIMUM (1)
-	   				
-	   				0x45, 0x01,	//	PHYSICAL_MAXIMUM (1)
-	   				0x09, 0x01,	//	Usage 1 (0x1)
-	   				0x81, 0x02,	//	INPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
-*/
-				0xc0,	//	END_COLLECTION
-
-   				0xa1, 0x02,	//	COLLECTION (Logical)
-   					0x75, 0x08,	//	REPORT_SIZE (8)
-   					0x95, 0x07,	//	REPORT_COUNT (7)
-   					0x46, 0xff, 0x00,	//	PHYSICAL_MAXIMUM (255)
-
-   					0x26, 0xff, 0x00,	//	LOGICAL_MAXIMUM (255)
-   					0x09, 0x02,	//	Usage 2 (0x2)
-   					0x91, 0x02,	//	OUTPUT (Data, Variable, Absolute, No Wrap, Linear, Preferred State, No Null Position, Bitfield)
-				0xc0,	//	END_COLLECTION
-
-    		0xc0,	//	END_COLLECTION
 };
 
 Joystick joystick = {

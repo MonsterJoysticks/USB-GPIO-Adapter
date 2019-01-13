@@ -1,3 +1,11 @@
+/* Name: main.c
+ * Project: Monster Joysticks USB / GPIO Joystick Adapter V1
+ * Author: Monster Joysticks Ltd. <info@monsterjoysticks.com>
+ * Copyright: (C) 2017 - 2019 Monster Joysticks Ltd. <info@monsterjoysticks.com>
+ * License: GPLv2
+ * Tabsize: 4
+ * Comments: Based on Multiple NES/SNES to USB converter by Christian Starkjohann
+ */
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
