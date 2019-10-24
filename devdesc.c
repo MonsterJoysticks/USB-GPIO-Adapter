@@ -21,7 +21,7 @@ const char usbDescrDevice[] PROGMEM = {    /* USB device descriptor */
 #endif
 
     2,          /* product string index */
-    3,          /* serial number string index */
+    0,          /* serial number string index */
     1,          /* number of configurations */
 };
 
